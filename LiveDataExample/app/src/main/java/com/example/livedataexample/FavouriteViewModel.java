@@ -11,28 +11,25 @@ import java.util.List;
 
 import androidx.annotation.NonNull;
 import androidx.lifecycle.AndroidViewModel;
+import androidx.lifecycle.LiveData;
+import androidx.lifecycle.MutableLiveData;
 
 public class FavouriteViewModel extends AndroidViewModel {
 
     private FavouriteDbHelper mFavouriteDbHelper;
-    private ArrayList<Favourites> mFavourites;
+    private MutableLiveData<List<Favourites>> mFavourites;
 
     public FavouriteViewModel(@NonNull Application application) {
         super(application);
         mFavouriteDbHelper = new FavouriteDbHelper(application);
     }
 
-    public List<Favourites> getFavourites() {
+    public LiveData<List<Favourites>> getFavourites() {
         if(mFavourites == null) {
-            mFavourites = new ArrayList<>();
-            createDummyList();
+            mFavourites = new MutableLiveData<>();
             loadFavourites();
         }
-        ArrayList<Favourites> clonedFavs = new ArrayList<>(mFavourites.size());
-        for (int i = 0; i < mFavourites.size(); i++) {
-            clonedFavs.add(new Favourites(mFavourites.get(i)));
-        }
-        return clonedFavs;
+        return mFavourites;
     }
 
     private void createDummyList() {
@@ -44,49 +41,63 @@ public class FavouriteViewModel extends AndroidViewModel {
         addFav("https://www.developers.android.com", (new Date()).getTime());
     }
 
-    public Favourites addFav(String url, long date) {
+    public void addFav(String url, long date) {
         ContentValues contentValues = new ContentValues(2);
         contentValues.put(DbSettings.DbEntry.COLUMN_NAME_URL, url);
         contentValues.put(DbSettings.DbEntry.COLUMN_NAME_DATE, date);
         SQLiteDatabase database = mFavouriteDbHelper.getWritableDatabase();
         long id = database.insertWithOnConflict(DbSettings.DbEntry.TABLE_NAME, null, contentValues, SQLiteDatabase.CONFLICT_REPLACE);
         database.close();
-        Favourites favourites = new Favourites(id, url, date);
-        mFavourites.add(favourites);
-        return favourites;
+
+        List<Favourites> favourites = mFavourites.getValue();
+        if(favourites == null) {
+            favourites = new ArrayList<>();
+        }
+        Favourites favourite = new Favourites(id, url, date);
+        favourites.add(favourite);
+        mFavourites.setValue(favourites);
     }
 
     private void loadFavourites() {
-        mFavourites.clear();
+        List<Favourites> favourites = new ArrayList<>();
         SQLiteDatabase database = mFavouriteDbHelper.getReadableDatabase();
         Cursor cursor = database.query(DbSettings.DbEntry.TABLE_NAME, null, null, null, null, null, null);
         while (cursor.moveToNext()) {
-            Favourites favourites = new Favourites(cursor.getLong(cursor.getColumnIndex(DbSettings.DbEntry._ID)),
+            Favourites favourite = new Favourites(cursor.getLong(cursor.getColumnIndex(DbSettings.DbEntry._ID)),
                     cursor.getString(cursor.getColumnIndex(DbSettings.DbEntry.COLUMN_NAME_URL)),
                     cursor.getLong(cursor.getColumnIndex(DbSettings.DbEntry.COLUMN_NAME_DATE)));
-            mFavourites.add(favourites);
+            favourites.add(favourite);
         }
         cursor.close();
+        database.close();
+        mFavourites.setValue(favourites);
     }
 
     public void removeFavourites(long id) {
         SQLiteDatabase database = mFavouriteDbHelper.getWritableDatabase();
-        database.delete(DbSettings.DbEntry.TABLE_NAME, DbSettings.DbEntry._ID + " =? ", new String[] {Long.toString(id)});
+        database.delete(DbSettings.DbEntry.TABLE_NAME, DbSettings.DbEntry._ID + " =? ", new String[]{Long.toString(id)});
         database.close();
+        List<Favourites> favouritesList = mFavourites.getValue();
+        ArrayList<Favourites> clonedFavouritesList = new ArrayList<>(favouritesList.size());
+        for (int i = 0; i < favouritesList.size(); i++) {
+            clonedFavouritesList.add(new Favourites(favouritesList.get(i)));
+        }
+
         int index = -1;
-        for(Favourites favourite : mFavourites) {
-            index++;
-            if(favourite.mId == id) {
-                mFavourites.remove(index);
-                break;
+        for (int i = 0; i < clonedFavouritesList.size(); i++) {
+            Favourites favourites = clonedFavouritesList.get(i);
+            if (favourites.mId == id) {
+                index = i;
             }
         }
+        if (index != -1) {
+            clonedFavouritesList.remove(index);
+        }
+        mFavourites.setValue(clonedFavouritesList);
     }
 
     @Override
     protected void onCleared() {
         super.onCleared();
-        mFavourites.clear();
-        mFavourites = null;
     }
 }
