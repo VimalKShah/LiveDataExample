@@ -49,13 +49,14 @@ public class FavouriteViewModel extends AndroidViewModel {
         long id = database.insertWithOnConflict(DbSettings.DbEntry.TABLE_NAME, null, contentValues, SQLiteDatabase.CONFLICT_REPLACE);
         database.close();
 
-        List<Favourites> favourites = mFavourites.getValue();
-        if(favourites == null) {
-            favourites = new ArrayList<>();
+        List<Favourites> favouritesList = mFavourites.getValue();
+        ArrayList<Favourites> clonedFavouritesList = new ArrayList<>(favouritesList.size());
+        for (int i = 0; i < favouritesList.size(); i++) {
+            clonedFavouritesList.add(new Favourites(favouritesList.get(i)));
         }
         Favourites favourite = new Favourites(id, url, date);
-        favourites.add(favourite);
-        mFavourites.setValue(favourites);
+        clonedFavouritesList.add(favourite);
+        mFavourites.setValue(clonedFavouritesList);
     }
 
     private void loadFavourites() {
